@@ -1,0 +1,5 @@
+* mhguix
+
+Generate the contents of the mhguix channel
+
+This will include a sway configuration in guile scheme using guile-swayer
