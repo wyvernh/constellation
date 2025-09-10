@@ -1,5 +1,6 @@
 (define-module (mhdisk)
   #:use-module (guile-user)
+  #:use-module (srfi srfi-1)
   #:declarative? #f
   #:export (main))
 
@@ -8,25 +9,40 @@
       (string-append drive "p" (number->string n))
       (string-append drive (number->string n))))
 
-(define (print-partition partition)
-  (display (assoc-ref partition 'type))
-  (display "   ")
-  (display (assoc-ref partition 'size))
-  (display "   ")
-  (display (assoc-ref partition 'label))
+(define (displ-str-w-len string n)
+  (define displ (make-string n #\space))
+  (if (< (string-length string) n)
+      (begin (string-copy! displ 0 string 0 (string-length string))
+             (display displ))
+      (display string)))
+
+(define (print-partition drive partition n)
+  (displ-str-w-len (partition-filename drive n) (+ (string-length drive) 10))
+  (displ-str-w-len (assoc-ref partition 'type) 12)
+  (displ-str-w-len (assoc-ref partition 'size) 12)
+  (when (string? (assoc-ref partition 'label))
+    (display (assoc-ref partition 'label)))
   (newline))
 
 (define (print-disk-from drive partitions n)
   (when (not (null? partitions))
-    (display (partition-filename drive n))
-    (display "     ")
-    (print-partition (car partitions))
+    (print-partition drive (car partitions) n)
     (print-disk-from drive (cdr partitions) (+ n 1))))
 
 (define (print-disk drive layout)
-  (display drive)
-  (display ":\n")
-  (print-disk-from drive layout 1))
+  (format #t "~a~a:~a\n" "\x1b[1m" drive "\x1b[0m")
+  (print-disk-from drive layout 1)
+  (newline))
+
+(define (wipe-disk drive)
+  (system* "sgdisk" "-Z" drive)
+  (system* "sgdisk" "-g" drive))
+
+(define (sgdisk-size-string partition n)
+  (let ((size (assoc-ref partition 'size)))
+    (if (eq? size "*")
+        (string-append (number->string n) ":0:0")
+        (string-append (number->string n) ":0:+" size))))
 
 (define (partition-type type)
   (assoc-ref '(("vfat" . "ef00")
@@ -35,40 +51,38 @@
                ("linux-swap" . "8200"))
              type))
 
-(define (mkfs type)
-  (assoc-ref '(;("vfat" . "mkfs.vfat")
-               ("vfat" . "echo")
-               ;("ext4" . "mkfs.ext4")
-               ("ext4" . "echo")
-               ;("btrfs" . "mkfs.btrfs")
-               ("btrfs" . "echo")
-               ;("linux-swap" . "mkswap")
-               ("linux-swap" . "echo"))
-             type))
-;;testing, replace echo with sgdisk
-(define (wipe-disk drive)
-  (system* "echo" "-Z" drive)
-  (system* "echo" "-g" drive))
-
-(define (sgdisk-n-string partition n)
-  (let ((size (assoc-ref partition 'size)))
-    (if (eq? size "*")
-        (string-append (number->string n) ":0:0")
-        (string-append (number->string n) ":0:+" size))))
-
-(define (sgdisk-t-string partition n)
+(define (sgdisk-type-string partition n)
   (let ((type (assoc-ref partition 'type)))
     (string-append (number->string n) ":" (partition-type type))))
 
 (define (mk-partition drive partition n)
-  (system* "echo"
-           "-n" (sgdisk-n-string partition n)
-           "-t" (sgdisk-t-string partition n)
+  (system* "sgdisk"
+           "-n" (sgdisk-size-string partition n)
+           "-t" (sgdisk-type-string partition n)
            drive))
 
+(define (make-filesystem type filename)
+  (cond
+   ((string=? type "vfat") (system* "mkfs.vfat" filename))
+   ((string=? type "ext4") (system* "mkfs.ext4" filename))
+   ((string=? type "btrfs") (system* "mkfs.btrfs" filename))
+   ((string=? type "linux-swap") (system* "mkswap" filename))))
+
+(define (make-label type label filename)
+  (cond
+   ((string=? type "vfat") (system* "fatlabel" filename label))
+   ((string=? type "ext2") (system* "e2label" filename label))
+   ((string=? type "btrfs") (system* "btrfs" "filesystem" "label" filename label))
+   ((string=? type "linux-swap") (system* "swaplabel" "-L" label filename))))
+
 (define (mk-fs drive partition n)
-  (system* (mkfs (assoc-ref partition 'type))
-           (partition-filename drive n)))
+  (make-filesystem
+   (assoc-ref partition 'type)
+   (partition-filename drive n))
+  (make-label
+   (assoc-ref partition 'type)
+   (assoc-ref partition 'label)
+   (partition-filename drive n)))
 
 (define (add-partition drive partition n)
   (if (zero? (mk-partition drive partition n))
@@ -86,34 +100,62 @@
             code))))
 
 (define (partition-disk drive layout)
+  (wipe-disk drive)
   (partition-disk-from drive layout 1))
 
+(define (alist? obj)
+  (and (list? obj)
+       (or (null? obj)
+           (and (pair? (car obj))
+                (alist? (cdr obj))))))
+
+(define (partition? list)
+  (and (alist? list)
+       (string? (assoc-ref list 'size))
+       (partition-type (assoc-ref list 'type))))
+
+(define (list-of-partitions? list)
+  (fold (lambda (x y) (and x y)) #t (map partition? list)))
+
+(define (disk? obj)
+  (and (list? obj)
+       (= (length obj) 2)
+       (string? (car obj))
+       (list? (car (cdr obj)))
+       (list-of-partitions? (car (cdr obj)))))
+
+(define (load-disk-from-file file-path)
+  (define disk
+    (catch #t
+           (lambda () (primitive-load file-path))
+           (lambda args (begin (format #t "could not load file '~a'\n" file-path)
+                          (exit 1)))))
+  (if (disk? disk)
+      disk
+      (begin (format #t "the file '~a' does not define a valid disk!\n" file-path)
+             (exit 1))))
+
 (define (run-mhdisk file-path)
-  (load file-path)
-  (if (not (defined? 'disk))
-      (begin
-        (display "Error: The file does not define a 'disk' variable\n")
-        (exit 1))
-      (let* ((disk-variable (eval 'disk))
-             (drive (car disk-variable))
-             (layout (car (cdr disk-variable))))
-        (display "Partitioning according to disk layout:\n")
-        (print-disk drive layout)
-        (let ((code (partition-disk drive layout)))
-          (if (zero? code)
-              (begin
-                (display "Successfully partitioned disk\n")
-                (exit 0))
-              (begin
-                (if (= 1 code)
-                    (display "sgdisk error\n")
-                    (display "filesystem error\n"))
-                (exit 1)))))))
+  (define disk (load-disk-from-file file-path))
+  (define drive (car disk))
+  (define layout (car (cdr disk)))
+  (display "Partitioning according to disk layout:\n\n")
+  (print-disk drive layout)
+  (let ((code (partition-disk drive layout)))
+    (if (zero? code)
+        (begin
+          (display "Successfully partitioned disk\n")
+          (exit 0))
+        (begin
+          (if (= 1 code)
+              (display "sgdisk error\n")
+              (display "filesystem error\n"))
+          (exit 2)))))
 
 (define (main args)
  (if (= (length args) 2)
      (run-mhdisk (car (cdr args)))
      (begin
        (display "Usage: mhdisk FILE_PATH\n")
-       (display "FILE_PATH must be a full file path to a scheme file that exports a variable 'disk\n")
+       (display "FILE_PATH must be a path to a scheme file that evaluates to a disk layout object\n")
        (exit 1))))
