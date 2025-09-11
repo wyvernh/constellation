@@ -1,0 +1,13 @@
+#+title: Utilities
+#+author: Matthew Hinton
+
+* What are these?
+
+This is a collection of simple utilities for my operating systems, mostly in the form of scripts.
+All that are useful on a Guix system will be packaged in mhguix, and some rely on other packages (mhdisk is a dependency of guix-installer).
+
+These utilities are tangled from Org files:
+
+- [[file:guix-installer.org][Guix Installer]]
+- [[file:mhdisk.org][MHDisk]]
+- [[file:mhguix-scripts.org][MHGuix Scripts]]

@@ -1,0 +1,24 @@
+#+title: MHGuix Scripts
+#+AUTHOR: Matthew Hinton
+#+DESCRIPTION: A collection of commands for systems built with mhguix
+
+* Shebangs
+#+name: sh
+#+begin_src sh
+  #!/bin/sh
+#+end_src
+
+* Updating
+#+begin_src sh :tangle mhguix-scripts/bin/system-reconfigure :noweb yes
+  <<sh>>
+
+  GREEN='\033[1;32m'
+  BLUE='\033[1;34m'
+  NC='\033[0m'
+
+  echo
+  echo -e "${GREEN}Updating ${BLUE}$(hostname)${GREEN}...${NC}"
+  echo
+
+  sudo guix system reconfigure --allow-downgrades -e "(@ (wyvernh systems $(hostname)) os)"
+#+end_src

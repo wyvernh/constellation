@@ -1,10 +1,10 @@
-#+title: mhdisk
+#+title: MHDisk
 #+AUTHOR: Matthew Hinton
 #+DESCRIPTION: A GNU Guix equivalent of disko from NixOS
 
 * Entry Points
 
-mhdisk consists of two executables: ~mhdisk~ and ~mhdisk-mount~. ~mhdisk~ is responsible for the partitioning and initialisation of file systems
+MHDisk consists of two executables: ~mhdisk~ and ~mhdisk-mount~. ~mhdisk~ is responsible for the partitioning and initialisation of file systems
 on the disk, while ~mhdisk-mount~ determines the root partition and mounts it on a specified mount point so that the system can be installed.
 
 These two functions are accessed via different entry points in the source script. We can call them from two different executable helper scripts.
