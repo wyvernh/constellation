@@ -1,8 +1,9 @@
 (define-module (mhdisk)
   #:use-module (guile-user)
   #:use-module (srfi srfi-1)
+  #:use-module (gnu image)
   #:declarative? #f
-  #:export (main))
+  #:export (mhdisk-main mhdisk-mount-main))
 
 (define (partition-filename drive n)
   (if (string-contains-ci drive "nvme")
@@ -18,10 +19,12 @@
 
 (define (print-partition drive partition n)
   (displ-str-w-len (partition-filename drive n) (+ (string-length drive) 10))
-  (displ-str-w-len (assoc-ref partition 'type) 12)
-  (displ-str-w-len (assoc-ref partition 'size) 12)
-  (when (string? (assoc-ref partition 'label))
-    (display (assoc-ref partition 'label)))
+  (displ-str-w-len (partition-file-system partition) 12)
+  (if (eq? 'guess (partition-size partition))
+      (displ-str-w-len "*" 18)
+      (displ-str-w-len (number->string (partition-size partition)) 18))
+  (when (string? (partition-label partition))
+    (display (partition-label partition)))
   (newline))
 
 (define (print-disk-from drive partitions n)
@@ -38,11 +41,14 @@
   (system* "sgdisk" "-Z" drive)
   (system* "sgdisk" "-g" drive))
 
+(define (sgdisk-size-from bytes)
+  (if (eq? bytes 'guess)
+      "0"
+      (string-append "+" (number->string (/ bytes 1024.0)) "K")))
+
 (define (sgdisk-size-string partition n)
-  (let ((size (assoc-ref partition 'size)))
-    (if (eq? size "*")
-        (string-append (number->string n) ":0:0")
-        (string-append (number->string n) ":0:+" size))))
+  (let ((size (sgdisk-size-from (partition-size partition))))
+    (string-append (number->string n) ":0:" size)))
 
 (define (partition-type type)
   (assoc-ref '(("vfat" . "ef00")
@@ -52,8 +58,12 @@
              type))
 
 (define (sgdisk-type-string partition n)
-  (let ((type (assoc-ref partition 'type)))
-    (string-append (number->string n) ":" (partition-type type))))
+  (let ((type (partition-type (partition-file-system partition))))
+    (if type
+        (string-append (number->string n) ":" type)
+        (begin
+          (format #t "unknown partition type: '~a'\n" (partition-file-system partition))
+          (exit 1)))))
 
 (define (mk-partition drive partition n)
   (system* "sgdisk"
@@ -66,27 +76,32 @@
    ((string=? type "vfat") (system* "mkfs.vfat" filename))
    ((string=? type "ext4") (system* "mkfs.ext4" filename))
    ((string=? type "btrfs") (system* "mkfs.btrfs" filename))
-   ((string=? type "linux-swap") (system* "mkswap" filename))))
+   ((string=? type "linux-swap") (system* "mkswap" filename))
+   (#t (begin
+         (format #t "unrecognised filesystem type: '~a'\n" type)
+         (exit 1)))))
 
 (define (make-label type label filename)
   (cond
    ((string=? type "vfat") (system* "fatlabel" filename label))
-   ((string=? type "ext2") (system* "e2label" filename label))
+   ((string=? type "ext4") (system* "e2label" filename label))
    ((string=? type "btrfs") (system* "btrfs" "filesystem" "label" filename label))
    ((string=? type "linux-swap") (system* "swaplabel" "-L" label filename))))
 
 (define (mk-fs drive partition n)
-  (make-filesystem
-   (assoc-ref partition 'type)
-   (partition-filename drive n))
-  (make-label
-   (assoc-ref partition 'type)
-   (assoc-ref partition 'label)
-   (partition-filename drive n)))
+  (and (zero? (make-filesystem
+               (partition-file-system partition)
+               (partition-filename drive n)))
+       (if (partition-label partition)
+           (zero? (make-label
+                   (partition-file-system partition)
+                   (partition-label partition)
+                   (partition-filename drive n)))
+           #t)))
 
 (define (add-partition drive partition n)
   (if (zero? (mk-partition drive partition n))
-      (if (zero? (mk-fs drive partition n))
+      (if (mk-fs drive partition n)
           0
           2)
       1))
@@ -103,33 +118,22 @@
   (wipe-disk drive)
   (partition-disk-from drive layout 1))
 
-(define (alist? obj)
-  (and (list? obj)
-       (or (null? obj)
-           (and (pair? (car obj))
-                (alist? (cdr obj))))))
-
-(define (partition? list)
-  (and (alist? list)
-       (string? (assoc-ref list 'size))
-       (partition-type (assoc-ref list 'type))))
-
 (define (list-of-partitions? list)
   (fold (lambda (x y) (and x y)) #t (map partition? list)))
 
 (define (disk? obj)
   (and (list? obj)
-       (= (length obj) 2)
+       (= (length obj) 3)
        (string? (car obj))
-       (list? (car (cdr obj)))
-       (list-of-partitions? (car (cdr obj)))))
+       (list? (car (cdr (cdr obj))))
+       (list-of-partitions? (car (cdr (cdr obj))))))
 
 (define (load-disk-from-file file-path)
   (define disk
     (catch #t
            (lambda () (primitive-load file-path))
            (lambda args (begin (format #t "could not load file '~a'\n" file-path)
-                          (exit 1)))))
+                               (exit 1)))))
   (if (disk? disk)
       disk
       (begin (format #t "the file '~a' does not define a valid disk!\n" file-path)
@@ -138,7 +142,7 @@
 (define (run-mhdisk file-path)
   (define disk (load-disk-from-file file-path))
   (define drive (car disk))
-  (define layout (car (cdr disk)))
+  (define layout (car (cdr (cdr disk))))
   (display "Partitioning according to disk layout:\n\n")
   (print-disk drive layout)
   (let ((code (partition-disk drive layout)))
@@ -152,10 +156,29 @@
               (display "filesystem error\n"))
           (exit 2)))))
 
-(define (main args)
- (if (= (length args) 2)
-     (run-mhdisk (car (cdr args)))
-     (begin
-       (display "Usage: mhdisk FILE_PATH\n")
-       (display "FILE_PATH must be a path to a scheme file that evaluates to a disk layout object\n")
-       (exit 1))))
+(define (run-mhdisk-mount mount-point file-path)
+  (define disk (load-disk-from-file file-path))
+  (let ((label (car (cdr disk))))
+    (if (not label)
+        (begin
+          (display "disk layout does not contain a root partition!")
+          (exit 1))
+        (if (zero? (system* "mount" (string-append "LABEL=" label) mount-point))
+            0
+            2))))
+
+(define (mhdisk-main args)
+  (if (= (length args) 2)
+      (run-mhdisk (car (cdr args)))
+      (begin
+        (display "Usage: mhdisk FILE_PATH\n")
+        (display "FILE_PATH must be a path to a scheme file that evaluates to a disk layout object\n")
+        (exit 1))))
+
+(define (mhdisk-mount-main args)
+  (if (= (length args) 3)
+      (apply run-mhdisk-mount (cdr args))
+      (begin
+        (display "Usage: mhdisk-root <mount-point> FILE_PATH\n")
+        (display "FILE_PATH must be a path to a scheme file that exports an operating-system\n")
+        (exit 1))))

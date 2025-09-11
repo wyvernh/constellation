@@ -1,5 +1,3 @@
 #!/usr/bin/env -S guix repl -L $(guix build --dry-run mhdisk)/src --
-Usage: sudo mhdisk /path/to/system.scm
 !#
-
-(apply (@ (mhdisk) main) (list (command-line)))
+(apply (@ (mhdisk) mhdisk-main) (list (command-line)))

@@ -1,0 +1,2 @@
+<<interpreter>>
+(apply (@ (mhdisk) mhdisk-mount-main) (list (command-line)))
