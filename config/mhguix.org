@@ -15,6 +15,7 @@ thanks to the fact MHDisk is channel agnostic.
 
 This will include a sway configuration in guile scheme using guile-swayer
 
+
 * Modules
 
 This is the core of the configuration system. There are two main modules: ~(wyvernh modules
@@ -456,7 +457,7 @@ recommended to end a system configuration with with a call to ~system-config~, a
 MHDisk utility expects a file that evaluates to the type of disk object ~system-config~
 returns.
 
-*** TODO: document this section
+*** TODO document this section
 
 #+begin_src scheme :tangle ../mhguix/wyvernh/modules/system.scm
   (define-module (wyvernh modules system)
@@ -1156,7 +1157,7 @@ returns.
 
 Currently no working package definitions.
 
-** TODO:
+** TODO
 kmonad config
 emacs config
 cognition
