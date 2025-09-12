@@ -1,0 +1,6 @@
+#+title: Constellation
+#+author: Matthew Hinton
+
+A network of operating systems and home environments, integrated configuration, custom
+packages, and scheme and cognition scripts leveraging the full power of NixOS and Guix
+system.
