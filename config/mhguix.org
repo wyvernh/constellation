@@ -640,6 +640,29 @@ returns.
               "3CE4 6455 8A84 FDC6 9DB4  0CFB 090B 1199 3D9A EBB5"))))))
 #+end_src
 
+Returning this list allows us to run ~guix pull --channels=/path/to/channels.scm~ followed
+by ~guix describe --format=channels~ to get the most recent commits for each channel.
+#+begin_src scheme :tangle ../mhguix/wyvernh/modules/system/channels.scm
+  (list (channel
+         (name 'mhguix)
+         (url "https://github.com/wyvernh/mhguix"))
+        (channel
+         (name 'nonguix)
+         (url "https://gitlab.com/nonguix/nonguix"))
+        (channel
+         (name 'guix)
+         (url "https://git.guix.gnu.org/guix.git"))
+        (channel
+         (name 'guix-science-nonfree)
+         (url "https://codeberg.org/guix-science/guix-science-nonfree.git"))
+        (channel
+         (name 'guix-science)
+         (url "https://codeberg.org/guix-science/guix-science.git"))
+        (channel
+         (name 'guix-past)
+         (url "https://codeberg.org/guix-science/guix-past.git")))
+#+end_src
+
 *** Filesystems
 #+begin_src scheme :tangle ../mhguix/wyvernh/modules/system/filesystems.scm
   (define-module (wyvernh modules system filesystems)
