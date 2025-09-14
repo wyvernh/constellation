@@ -535,6 +535,10 @@ returns.
       (packages default-packages)
       (services default-services))
 
+     (define svcs
+       (services-from services channels hardware
+                      (users-from users) (list-copy packages)))
+
      (set!
       os
       (operating-system
@@ -556,7 +560,7 @@ returns.
        (users (users-from users))
        (groups (groups-from groups users))
        (packages (packages-from packages))
-       (services (services-from services channels hardware (users-from users)))))
+       (services svcs)))
 
      (set! disk (disk-from filesystems drive))
 
@@ -568,35 +572,72 @@ returns.
 *** Channels
 #+begin_src scheme :tangle ../mhguix/wyvernh/modules/system/channels.scm
   (define-module (wyvernh modules system channels)
-    #:use-module (guix channels)
-    #:export (guix-science-nonfree))
+    #:use-module (guix channels))
 
   (define-public %wyvernh-base-channels
-    (cons* (channel
-            (name 'mhguix)
-            (url "https://github.com/wyvernh/mhguix"))
-           (channel
-            (name 'nonguix)
-            (url "https://gitlab.com/nonguix/nonguix")
-            (introduction
-             (make-channel-introduction
-              "897c1a470da759236cc11798f4e0a5f7d4d59fbc"
-              (openpgp-fingerprint
-               "2A39 3FFF 68F4 EF7A 3D29  12AF 6F51 20A0 22FB B2D5"))))
-           %default-channels))
+    (list (channel
+           (name 'mhguix)
+           (url "https://github.com/wyvernh/mhguix")
+           (branch "master")
+           (commit
+            "02d09da886abb14a37b7025616d752ff1e184f62"))
+          (channel
+           (name 'nonguix)
+           (url "https://gitlab.com/nonguix/nonguix")
+           (branch "master")
+           (commit
+            "df4e6ed9fe917f004357d931e210e328e348bb38")
+           (introduction
+            (make-channel-introduction
+             "897c1a470da759236cc11798f4e0a5f7d4d59fbc"
+             (openpgp-fingerprint
+              "2A39 3FFF 68F4 EF7A 3D29  12AF 6F51 20A0 22FB B2D5"))))
+          (channel
+           (name 'guix)
+           (url "https://git.guix.gnu.org/guix.git")
+           (branch "master")
+           (commit
+            "94ec8623a86e49beb0f80415a1fc194b8498dc9a")
+           (introduction
+            (make-channel-introduction
+             "9edb3f66fd807b096b48283debdcddccfea34bad"
+             (openpgp-fingerprint
+              "BBB0 2DDF 2CEA F6A8 0D1D  E643 A2A0 6DF2 A33A 54FA"))))))
 
-  (define %guix-science-nonfree-channel
-    (channel
-     (name 'guix-science-nonfree)
-     (url "https://codeberg.org/guix-science/guix-science-nonfree.git")
-     (introduction
-      (make-channel-introduction
-       "58661b110325fd5d9b40e6f0177cc486a615817e"
-       (openpgp-fingerprint
-        "CA4F 8CF4 37D7 478F DA05  5FD4 4213 7701 1A37 8446")))))
-
-  (define guix-science-nonfree
-    (list %guix-science-nonfree-channel))
+  (define-public %wyvernh-channels
+    (list (channel
+           (name 'guix-science-nonfree)
+           (url "https://codeberg.org/guix-science/guix-science-nonfree.git")
+           (branch "master")
+           (commit
+            "d87f5c1b09f287f798268751e2d14f8c2b3453da")
+           (introduction
+            (make-channel-introduction
+             "58661b110325fd5d9b40e6f0177cc486a615817e"
+             (openpgp-fingerprint
+              "CA4F 8CF4 37D7 478F DA05  5FD4 4213 7701 1A37 8446"))))
+          (channel
+           (name 'guix-science)
+           (url "https://codeberg.org/guix-science/guix-science.git")
+           (branch "master")
+           (commit
+            "d65eb0f1f8e65f9d5e34b4f14e5573a793d8d07e")
+           (introduction
+            (make-channel-introduction
+             "b1fe5aaff3ab48e798a4cce02f0212bc91f423dc"
+             (openpgp-fingerprint
+              "CA4F 8CF4 37D7 478F DA05  5FD4 4213 7701 1A37 8446"))))
+          (channel
+           (name 'guix-past)
+           (url "https://codeberg.org/guix-science/guix-past.git")
+           (branch "master")
+           (commit
+            "b14d7f997ae8eec788a7c16a7252460cba3aaef8")
+           (introduction
+            (make-channel-introduction
+             "0c119db2ea86a389769f4d2b9c6f5c41c027e336"
+             (openpgp-fingerprint
+              "3CE4 6455 8A84 FDC6 9DB4  0CFB 090B 1199 3D9A EBB5"))))))
 #+end_src
 
 *** Filesystems
@@ -769,6 +810,8 @@ returns.
 #+end_src
 
 *** System Services
+Like in the home module, services can add packages using ~proile-service-type~ for root
+packages. So the ~packages~ argument to ~services-from~ only merely needs to add channels.
 #+begin_src scheme :tangle ../mhguix/wyvernh/modules/system/services.scm
   (define-module (wyvernh modules system services)
     #:use-module (wyvernh modules tools)
@@ -804,6 +847,7 @@ returns.
     #:use-module (gnu system privilege)
     #:use-module (nongnu packages nvidia)
     #:use-module (nongnu services nvidia)
+    #:use-module (guix channels)
     #:use-module (srfi srfi-1)
     #:export (services-from))
 
@@ -966,6 +1010,13 @@ returns.
 
   (define amdgpu (lambda (lst _) lst))
 
+  ;; PACKAGE CHANNELS
+
+  (define core '())
+  (define extras '())
+
+  ;; Build services-from
+
   (define current-env (interaction-environment))
 
   (define (get-lambdas sources)
@@ -974,12 +1025,19 @@ returns.
   (define (apply-lambdas sources users lst)
     (fold (lambda (proc l) (apply proc (list l users))) lst (get-lambdas sources)))
 
-  (define (channel-list channels)
-    (append (eval-reduce channels current-env) %wyvernh-base-channels))
+  (define (get-channel-from symbol)
+    (find (lambda (e) (eq? symbol (channel-name e))) %wyvernh-channels))
 
-  (define (services-from svcs channels hardware users)
+  (define (get-channels lst)
+    (map get-channel-from (delete-duplicates lst eq?)))
+
+  (define (channel-list channels packages)
+    (append (get-channels (append channels (eval-reduce packages current-env)))
+            %wyvernh-base-channels))
+
+  (define (services-from svcs channels hardware users packages)
     (add-channels
-     (channel-list channels)
+     (channel-list channels packages)
      (apply-lambdas hardware users
                     (apply-lambdas svcs users %wyvernh-base-services))))
 #+end_src
@@ -1079,7 +1137,7 @@ returns.
   (define (groups-from groups users)
     (delete-duplicates
      (append %base-groups (eval-map groups current-env) (user-groups users))
-     (lambda (gp1 gp2) (eq? (user-group-name gp1) (user-group-name gp2)))))
+     (lambda (gp1 gp2) (string=? (user-group-name gp1) (user-group-name gp2)))))
 #+end_src
 
 
@@ -1117,39 +1175,42 @@ returns.
     #:use-module (wyvernh modules system)
     #:use-module (gnu image)
     #:use-module (gnu system image)
-    #:use-module (guix gexp)
+    ;#:use-module (guix gexp)
     #:re-export (os))
 
   (system-config
-   #:filesystems '((fs-efi #:size (* 40 MiB) #:label "ISO_ESP")
-                   (fs-root #:size 'guess #:label "ISO_Root" #:type "ext4"))
+   ;#:filesystems '((fs-efi #:size (* 40 MiB) #:label "ISO_ESP")
+   ;                (fs-root #:size 'guess #:label "ISO_Root" #:type "ext4"))
+   #:filesystems '((fs-root #:size 'guess #:type "iso9660" #:label "GUIX_IMAGE"))
    #:users '((basic-user "iso"))
    #:groups '()
    #:channels '(guix-science-nonfree)
    #:packages '(core)
    #:services '(autologin substitutes))
 
-  (image
-   (inherit efi-disk-image)
-   (operating-system os)
-   (partitions
-    (list (partition
-           (inherit esp-partition)
-           (label "ISO_ESP"))
-          (partition
-           (size (* 50 (expt 2 20)))
-           (label "ISO_Data")
-           (file-system "ext4")
-           (initializer
-            #~(lambda* (root . rest)
-                       (mkdir root)
-                       (call-with-output-file
-                           (string-append root "/data")
-                         (lambda (port)
-                           (format port "my-data"))))))
-          (partition
-           (inherit root-partition)
-           (label "ISO_Root")))))
+  (os->image os #:type iso-image-type)
+
+  ;(image
+  ; (inherit efi-disk-image)
+  ; (operating-system os)
+  ; (partitions
+  ;  (list (partition
+  ;         (inherit esp-partition)
+  ;         (label "ISO_ESP"))
+  ;        (partition
+  ;         (size (* 50 (expt 2 20)))
+  ;         (label "ISO_Data")
+  ;         (file-system "ext4")
+  ;         (initializer
+  ;          #~(lambda* (root . rest)
+  ;                     (mkdir root)
+  ;                     (call-with-output-file
+  ;                         (string-append root "/data")
+  ;                       (lambda (port)
+  ;                         (format port "my-data"))))))
+  ;        (partition
+  ;         (inherit root-partition)
+  ;         (label "ISO_Root")))))
 #+end_src
 
 

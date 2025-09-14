@@ -11,85 +11,66 @@ cd "$HOME"
 
 ping -q -c1 google.com &>/dev/null && echo "online! Proceeding with the installation..." || nmtui
 
-gum style --border normal --margin "1" --padding "1 2" "Choose a system to install or select `new` in order to create a new system."
+if [ ! -d "$HOME/mhguix/" ]; then
+    CHANNEL_NAME=mhguix
+    CHANNEL_INFO=$(guix describe --format=channels | grep -A 4 "'$CHANNEL_NAME)")
+    CHANNEL_URL=$(echo "$CHANNEL_INFO" | awk -F'"' '/(url)/{print $2}')
+    CHANNEL_COMMIT=$(echo "$CHANNEL_INFO" | awk -F'"' '/(commit)/{print $6}')
+    git clone "$CHANNEL_URL"
+    cd "$HOME/mhguix"
+    git checkout "$CHANNEL_COMMIT"
+    cd "$HOME"
+fi
 
-SYSTEM="$(gum choose $(find "$HOME/monorepo/nix/systems" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | grep -v -E 'installer'; printf "New"))"
+gum style --border normal --margin "1" --padding "1 2" "Choose a system to install or select `New` in order to create a new system."
+
+SYSTEM="$(gum choose $(basename -s .scm $(find "$HOME/mhguix/wyvernh/systems/" -mindepth 1 -maxdepth 1 -type f -iname '*.scm' -printf "%f\n"); printf "New"))"
 
 if [[ "$SYSTEM" == "New" ]]; then
     gum style --border normal --margin "1" --padding "1 2" "Choose a system name"
     SYSTEM="$(gum input --placeholder "system name")"
-
-    gum style --border normal --margin "1" --padding "1 2" "Select a drive file or create a new drive file."
-    DRIVE="$(gum choose $(find "$HOME/monorepo/nix/disko" -mindepth 1 -maxdepth 1 -type f -printf "%f\n"; printf "New"))"
-
-    if [[ "$DRIVE" == "New" ]]; then
-        gum style --border normal --margin "1" --padding "1 2" "Choose a name to call your drive file."
-        DRIVE="$(gum input --placeholder "drive file name (ex: partition_scheme.nix)")"
-    fi
-fi
-
-if [ ! -d "$HOME/monorepo/" ]; then
-    git clone ${commits.monorepoUrl}
-    cd "$HOME/monorepo"
-    git checkout "${commits.monorepoCommitHash}"
-    cd "$HOME"
 fi
 
 
-if [ ! -d "$HOME/monorepo/nix/systems/$SYSTEM" ]; then
-    mkdir -p "$HOME/monorepo/nix/systems/$SYSTEM"
-    cp "$HOME/monorepo/nix/systems/continuity/home.nix" "$HOME/monorepo/nix/systems/$SYSTEM/home.nix"
-    cat > "$HOME/monorepo/nix/systems/$SYSTEM/default.nix" <<EOF
-  {     ... }:
-  {
-    impo  rts = [
-      ../i    ncludes.nix
-      ../../disko/$DRIVE
-    ];
-    # CHANGEME
-    config.monorepo.vars.drive = "/dev/sda";
-  }
-  EOF
+if [ ! -f "$HOME/mhguix/wyvernh/systems/$SYSTEM.scm" ]; then
+    cat > "$HOME/mhguix/wyvernh/systems/$SYSTEM.scm" <<EOF
+(define-module (wyvernh systems $SYSTEM)
+  #:use-module (wyvernh modules home)
+  #:use-module (wyvernh modules system)
+  #:export (home os disk))
 
-    gum style --border normal --margin "1" --padding "1 2" "Edit the system default.nix with options."
+(home-config)
+
+(system-config)
+EOF
+
+    gum style --border normal --margin "1" --padding "1 2" "Edit the system config file."
     gum input --placeholder "Press Enter to continue" >/dev/null
-    vim "$HOME/monorepo/nix/systems/$SYSTEM/default.nix"
+    vim "$HOME/mhguix/wyvernh/systems/$SYSTEM.scm"
 
-    gum style --border normal --margin "1" --padding "1 2" "Edit the home default.nix with options."
-    gum input --placeholder "Press Enter to continue" >/dev/null
-    vim "$HOME/monorepo/nix/systems/$SYSTEM/home.nix"
+    cd "$HOME/mhguix" && git add . && cd "$HOME"
+fi
 
-    sed -i "/# add hostnames here/i \  \"$1\"" "$HOME/monorepo/nix/flake.nix"
+gum style --border normal --margin "1" --padding "1 2" "Formatting the drive is destructive!"
+if gum confirm "Are you sure you want to continue?"; then
+    echo "Proceeding..."
+else
+    echo "Aborting."
+    exit 1
+fi
 
-    if [ ! -f "$HOME/monorepo/nix/disko/$DRIVE" ]; then
-      cp "$HOME/monorepo/nix/disko/drive-simple.nix" "$HOME/monorepo/nix/disko/$DRIVE"
-      gum style --border normal --margin "1" --padding "1 2" "Edit the drive file with your preferred partitioning scheme."
-      gum input --placeholder "Press Enter to continue" >/dev/null
-      vim "$HOME/monorepo/nix/disko/$DRIVE"
-    fi
-    cd "$HOME/monorepo" && git add . && cd "$HOME"
-  fi
+mhdisk "$HOME/mhguix/systems/$SYSTEM.scm"
+mhdisk-mount /mnt "$HOME/mhguix/systems/$SYSTEM.scm"
 
-  nix --extra-experimental-features 'nix-command flakes' eval "$HOME/monorepo/nix#evalDisko.$SYSTEM" > "$HOME/drive.nix"
+herd start cow-store /mnt
 
-  gum style --border normal --margin "1" --padding "1 2" "Formatting the drive is destructive!"
-  if gum confirm "Are you sure you want to continue?"; then
-      echo "Proceeding..."
-  else
-      echo "Aborting."
-      exit 1
-  fi
+sudo guix system init -L "$HOME/mhguix" -e "(@ (wyvernh systems $SYSTEM) os)" /mnt
 
-  sudo nix --experimental-features "nix-command flakes" run "github:nix-community/disko/${commits.diskoCommitHash}" -- --mode destroy,format,mount "$HOME/drive.nix"
+target_user="$(ls /mnt/home | head -n1)"
+if [ -z "$target_user" ]; then
+    echo "No user directories found in /mnt/home"
+    echo "The config file for $SYSTEM will not be copied to the new system"
+fi
+sudo cp -r "$HOME/mhguix" "/mnt/home/$target_user/"
 
-  cd /mnt
-  sudo nixos-install --flake "$HOME/monorepo/nix#$SYSTEM"
-
-  target_user="$(ls /mnt/home | head -n1)"
-  if [ -z "$target_user" ]; then
-      echo "No user directories found in /mnt/home"
-      exit 1
-  fi
-  sudo cp -r "$HOME/monorepo" "/mnt/home/$target_user/"
-
-  echo "rebooting..."; sleep 3; reboot
+echo "rebooting..."; sleep 3; reboot
