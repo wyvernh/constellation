@@ -1,0 +1,167 @@
+(defcfg
+  input  (device-file "/dev/input/by-id/usb-ASUSTeK_Computer_Inc._N-KEY_Device-if02-event-kbd")
+  output (uinput-sink "My KMonad output"  ;;"sleep 1 && setxkbmap -option compose:ralt"
+  )
+  cmp-seq ralt    ;; Set the compose key to `RightAlt'
+  cmp-seq-delay 5 ;; 5ms delay between each compose-key sequence press
+
+  ;; Comment this if you want unhandled events not to be emitted
+  fallthrough true
+
+  ;; Set this to false to disable any command-execution in KMonad
+  allow-cmd true
+)
+
+(defsrc
+  esc     f1   f2   f3   f4   f5   f6   f7   f8   f9   f10  f11  f12
+  grv     1    2    3    4    5    6    7    8    9    0    -    =    bspc
+  tab     q    w    e    r    t    y    u    i    o    p    [    ]    \
+  caps    a    s    d    f    g    h    j    k    l    ;    '    ret
+  lsft      z    x    c    v    b    n    m    ,    .    /    rsft
+  lctl    lmet lalt           spc            ralt rctl
+)
+
+
+(defalias
+  stdt1 (tap-macro t o g g l e 1 lsft :delay 5)
+  stdt3 (layer-toggle std-extend)
+)
+
+(defalias
+  dspc spc ;;(tap-macro spc s p a c e :delay 5)
+  sspc (tap-macro spc (around-next-timeout 2000 lsft XX) :delay 5)
+  press (tap-next-press @dspc @stdt1)
+)
+
+(defalias
+  s01 (tap-hold-next 1206 @dspc @press :timeout-button x)
+  s03 (tap-hold-next 1205 (around-next lsft) @stdt3)
+)
+
+(defalias
+  sa (tap-hold-next-release 600 a lmet :timeout-button a)
+  sb b
+  sc c
+  sd d
+  se (tap-hold-next-release 600 e lctl :timeout-button e)
+  sf f
+  sg g
+  sh h
+  si (tap-hold-next-release 600 i lalt :timeout-button i)
+  sj j
+  sk k
+  sl l
+  sm m
+  sn (tap-hold-next-release 600 n lsft :timeout-button n)
+  so (tap-hold-next-release 600 o lmet :timeout-button o)
+  sp p
+  sq q
+  sr (tap-hold-next-release 600 r lalt :timeout-button r)
+  ss (tap-hold-next-release 600 s lctl :timeout-button s)
+  st (tap-hold-next-release 600 t lsft :timeout-button t)
+  su u
+  sv v
+  sw w
+  sx x
+  sy y
+  sz z
+  s, ,
+  s. .
+  s/ /
+  s' '
+)
+
+;; define dozenal characters
+(defalias unicode C-S-u)
+(defalias
+  turneddigittwo (tap-macro @unicode 2 1 8 a ret :delay 5)    ;; KeyTurnedDigitTwo
+  turneddigitthree (tap-macro @unicode 2 1 8 b ret :delay 5)  ;; KeyTurnedDigitThree
+)
+
+(defalias
+  ga (tap-macro @unicode 0 3 b 1 ret :delay 5)
+  gb (tap-macro @unicode 0 3 b 2 ret :delay 5)
+  gc (tap-macro @unicode 0 3 c 8 ret :delay 5)
+  gd (tap-macro @unicode 0 3 b 4 ret :delay 5)
+  ge (tap-macro @unicode 0 3 b 5 ret :delay 5)
+  gf (tap-macro @unicode 0 3 c 6 ret :delay 5)
+  gg (tap-macro @unicode 0 3 b 3 ret :delay 5)
+  gh (tap-macro @unicode 0 3 b 7 ret :delay 5)
+  gi (tap-macro @unicode 0 3 b 9 ret :delay 5)
+  gj (tap-macro @unicode 0 3 b d ret :delay 5)
+  gk (tap-macro @unicode 0 3 b a ret :delay 5)
+  gl (tap-macro @unicode 0 3 b b ret :delay 5)
+  gm (tap-macro @unicode 0 3 b c ret :delay 5)
+  gn (tap-macro @unicode 0 3 b d ret :delay 5)
+  go (tap-macro @unicode 0 3 9 f ret :delay 5)
+  gp (tap-macro @unicode 0 3 c 0 ret :delay 5)
+  gq (tap-macro @unicode 2 0 1 4 ret :delay 5)
+  gr (tap-macro @unicode 0 3 c 1 ret :delay 5)
+  gs (tap-macro @unicode 0 3 c 3 ret :delay 5)
+  gt (tap-macro @unicode 0 3 c 4 ret :delay 5)
+  gu (tap-macro @unicode 0 3 b 8 ret :delay 5)
+  gv (tap-macro @unicode 0 3 c 9 ret :delay 5)
+  gw (tap-macro @unicode 0 3 c 2 ret :delay 5)
+  gx (tap-macro @unicode 0 3 c 7 ret :delay 5)
+  gy (tap-macro @unicode 0 3 c 5 ret :delay 5)
+  gz (tap-macro @unicode 0 3 b 6 ret :delay 5)
+  g, ,
+  g. .
+  g/ /
+  g' '
+)
+
+;; set up numpad and function keys with home row mods
+(defalias
+  0n (tap-hold-next-release 1200 0 lsft :timeout-button 0)
+  1n (tap-hold-next-release 1200 1 lctl)
+  2n (tap-hold-next-release 1200 2 lalt)
+  3n (tap-hold-next-release 1200 3 lmet)
+  4n 4 ;;(tap-hold-next-release 1200 4 ? :timeout-button 4)
+  5n 5 ;;(tap-hold-next-release 1200 5 ? :timeout-button 5)
+  6n 6 ;;(tap-hold-next-release 1200 6 ? :timeout-button 6)
+  7n 7 ;;(tap-hold-next-release 1200 7 ? :timeout-button 7)
+  8n 8 ;;(tap-hold-next-release 1200 8 ? :timeout-button 8)
+  9n 9 ;;(tap-hold-next-release 1200 9 ? :timeout-button 9)
+  ↊n @turneddigittwo ;;(tap-hold-next-release 1200 @turneddigittwo ? :timeout-button ↊)
+  ↋n @turneddigitthree ;;(tap-hold-next-release 1200 @turneddigitthree ? :timeout-button ↋)
+)
+
+;; use those dozenal characters
+(defalias
+  num (tap-hold-next-release 2000 (layer-switch colemak-dh-dozenal) (layer-toggle colemak-dh-dozenal))
+  std (tap-hold-next-release 2000 (layer-switch colemak-dh) (layer-toggle colemak-dh))
+)
+
+(defalias
+  dim (cmd-button "busctl call org.clightd.clightd /org/clightd/clightd/Backlight org.clightd.clightd.Backlight LowerAll \"d(bdu)s\" 0.1 0 0 0 \"\"")
+  ris (cmd-button "busctl call org.clightd.clightd /org/clightd/clightd/Backlight org.clightd.clightd.Backlight RaiseAll \"d(bdu)s\" 0.1 0 0 0 \"\"")
+)
+
+
+(deflayer colemak-dh
+  esc   KeyMute _    _    f4   f5   f6   _    _    f9   f10  f11  f12
+  grv      1    2    3    4    5    6    7    8    9    0    -    =    @num
+  _ @sq      @sw  @sf  @sp  @sb   \\   \\  @sj  @sl  @su  @sy  @s'  ;
+  _ @sa      @sr  @ss  @st  @sg  [    ]    @sm  @sn  @se  @si  @so
+  _ @sx        @sc  @sd  @sv  @sz  ;    @s/  @sk  @sh  @s,  @s.
+  lctl     lmet bspc           @s03           spc  @num
+)
+
+(deflayer colemak-dh-dozenal
+  esc      f1   f2   f3   f4   f5   f6   f7   f8   f9   f10  f11  f12
+  grv      1    2    3    4    5    6    7    8    9    0    @↊n  @↋n  @std
+  _ @gq      @gw  @gf  @gp  @gb  \\  \\  @gj  @gl  @gu  @gy  @g'  ;
+  _ @ga      @gr  @gs  @gt  @gg  [    ]    @gm  @gn  @ge  @gi  @go
+  _ @gz        @gx  @gc  @gd  @gv  ;    @g/  @gk  @gh  @g,  @g.
+  lctl     lmet bspc           @s03           spc  @std
+)
+
+(deflayer std-extend
+  _        _    _    _    _    _    _    _    _    _    _    _    _
+  _        _    _    _    _    _    _    _    _    _    _    _    _    _
+  _        _    _    _    _    _    _    _    _    _    _    _    _    _
+  _        lmet lalt lctl lsft _    _    _    _    left up   down rght
+  _          _    _    _    _    _    _    _    _    _    _    _
+  _        XX   XX             XX             ret  tab
+)
