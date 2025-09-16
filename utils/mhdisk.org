@@ -16,7 +16,11 @@ is installed.
 ** Interpreter
 #+name: interpreter
 #+begin_src scheme
-  #!/usr/bin/env -S guix repl -L $(guix build --dry-run mhdisk)/src --
+  #!/bin/sh
+  set -e
+  MHDISK=$(guix build --dry-run mhdisk)
+  guix repl -L $MHDISK/src $MHDISK/bin/$(basename $0)
+  exit 0
   !#
 #+end_src
 
