@@ -1,0 +1,188 @@
+#+title: Emacs Configuration
+#+author: Matthew Hinton
+#+property: header-args:emacs-lisp :tangle emacs/init.el
+
+* Early Init
+Runs before the GUI is initialised.
+#+begin_src emacs-lisp :tangle emacs/early-init.el
+  (setq package-enable-at-startup nil
+        inhibit-startup-message   t
+        frame-resize-pixelwise    t  ; fine resize
+        package-native-compile    t) ; native compile packages
+  (scroll-bar-mode -1)               ; disable scrollbar
+  (tool-bar-mode -1)                 ; disable toolbar
+  (tooltip-mode -1)                  ; disable tooltips
+  (set-fringe-mode 10)               ; give some breathing room
+  (menu-bar-mode -1)                 ; disable menubar
+  (blink-cursor-mode 0)              ; disable blinking cursor
+#+end_src
+
+* Basic Configuration
+** Text Editing
+Avoid trailing spaces in files.
+*** TODO except cognition mode
+#+begin_src emacs-lisp
+  (add-hook 'before-save-hook #'whitespace-cleanup)
+#+end_src
+
+Remove double-spaces at the end of sentences.
+#+begin_src emacs-lisp
+  (setq-default sentence-end-double-space nil)
+#+end_src
+
+The minor mode ~global-subword-mode~ allows a finer definition of word separation.
+#+begin_src emacs-lisp
+  (global-subword-mode 1)
+#+end_src
+
+Scroll text conservatively rather than jumping half a page each time.
+#+begin_src emacs-lisp
+  (setq scroll-conservatively 1000)
+#+end_src
+
+Let the default mode for emacs be text mode.
+#+begin_src emacs-lisp
+  (setq-default initial-major-mode 'text-mode)
+#+end_src
+
+Disable tabs by default. Use spaces instead.
+#+begin_src emacs-lisp
+  (setq-default indent-tabs-mode nil)
+  (add-hook 'prog-mode-hook (lambda () (setq indent-tabs-mode nil)))
+#+end_src
+
+** GPG pinentry
+This lets Emacs decrypt GPG encrypted files.
+#+begin_src emacs-lisp
+  (setq epg-pinentry-mode 'loopback)
+#+end_src
+
+** Programming Modes
+
+** Cleanliness
+Let Emacs create its backup files in a ~.tmp/backups~ directory, to avoid
+cluttering the project directory.
+#+begin_src emacs-lisp
+  (setq backup-directory-alist `(("." . ,(expand-file-name ".tmp/backups/"
+                                                           user-emacs-directory))))
+#+end_src
+
+Use a custom file instead of ~init.el~ for automatic storing of custom
+variables by emacs packages, to avoid losing changes when tangling this file.
+#+begin_src emacs-lisp
+  (setq-default custom-file (expand-file-name ".custom.el" user-emacs-directory))
+  (when (file-exists-p custom-file)
+    (load custom-file))
+#+end_src
+
+Move deleted files to trash, instead of rm'ing them.
+#+begin_src emacs-lisp
+  (setq delete-by-moving-to-trash t)
+#+end_src
+
+Disable init message in the scratch buffer.
+#+begin_src emacs-lisp
+  (setq-default initial-scratch-message nil)
+#+end_src
+
+Reply to yes/no questions from emacs with ~y~ and ~n~. This configuration has changed
+since Emacs 28.
+#+begin_src emacs-lisp
+  (if (version<= emacs-version "28")
+      (defalias 'yes-or-no-p 'y-or-n-p)
+    (setopt use-short-answers t))
+#+end_src
+
+Always revert a file buffer when its contents change on disk. If the
+buffer is modified and its changes haven't been saved, Emacs won't
+automatically revert the buffer in that case.
+#+begin_src emacs-lisp
+  (global-auto-revert-mode 1)
+#+end_src
+
+** Misc
+Raise Emacs undo memory to 10 MB, and auto-save files by default.
+#+begin_src emacs-lisp
+  (setq undo-limit 100000000
+        auto-save-default t)
+#+end_src
+
+Take new window space from other windows.
+#+begin_src emacs-lisp
+  (setq window-combination-resize t)
+#+end_src
+
+** Personal Information
+Set some variables for packages requiring personal information
+#+begin_src emacs-lisp
+  (setq user-full-name       "Matthew Hinton"
+        user-real-login-name "Matthew Hinton"
+        user-login-name      "matthew"
+        user-mail-address    "mttwhtn@gmail.com")
+#+end_src
+
+** Visual Configuration
+Use a visual bell instead of a sonic bell.
+#+begin_src emacs-lisp
+  (setq visible-bell t)
+#+end_src
+
+Cursor covers the full space of a character.
+#+begin_src emacs-lisp
+  (setq x-stretch-cursor t)
+#+end_src
+
+Use ellipsis character instead of three periods for ellipsed text.
+#+begin_src emacs-lisp
+  (with-eval-after-load 'mule-util
+    (setq truncate-string-ellipsis "…"))
+#+end_src
+
+Make background transparent. (version >= 29.0.50.)
+#+begin_src emacs-lisp
+  (add-to-list 'default-frame-alist '(alpha-background . 0.9))
+#+end_src
+
+** Modeline Modules
+
+** Fonts
+Set the font to Fira Code instead of the default. In the future, use a custom font to get
+U0305 to display properly over digits in chronal.
+#+begin_src emacs-lisp
+  (defvar wyvernh/default-font-size 105)
+  (defvar wyvernh/default-font-name "Fira Code")
+  (defun my/set-font ()
+    (when (find-font (font-spec :name wyvernh/default-font-name))
+      (set-face-attribute 'default nil
+                          :font wyvernh/default-font-name
+                          :height wyvernh/default-font-size)))
+  (my/set-font)
+  (add-hook 'server-after-make-frame-hook #'my/set-font)
+#+end_src
+
+** Frame Title
+
+* Visual Configuration
+** Solaire
+Make the background of programming buffers slightly lighter than that of other buffers.
+#+begin_src emacs-lisp
+;  (use-package solaire-mode
+;    :defer t
+;    :init (solaire-global-mode +1))
+#+end_src
+
+** Theme
+Use ~tomorrow-night-paradise-theme~ included in the user emacs directory.
+#+begin_src emacs-lisp
+  (add-to-list 'custom-theme-load-path "~/.config/emacs")
+;  (require 'tomorrow-night-paradise-theme)
+  (load-theme 'tomorrow-night-paradise t)
+#+end_src
+
+** Rainbow Delimiters
+This package especially makes lisp and scheme more readable.
+#+begin_src emacs-lisp
+;(use-package rainbow-delimiters
+;  :defer t
+;  :hook (prog-mode . rainbow-delimiters-mode))
+#+end_src

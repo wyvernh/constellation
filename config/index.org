@@ -1,0 +1,7 @@
+#+title: Configurations
+#+author: Matthew Hinton
+
+This is a list of mhguix compatible configurations for programs I use.
+
+- [[file:emacs.org][GNU Emacs]]
+- [[file:kmonad.org][KMonad]]
